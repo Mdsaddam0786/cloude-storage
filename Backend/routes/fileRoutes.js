@@ -8,7 +8,7 @@ const fs = require('fs');
 const router = express.Router();
 const { createClient } = require('redis');
 const authMiddleware = require('../middleware/authMiddleware');
-//Redis connection (TLS for Redis Cloud)
+// Redis connection without top-level await
 const redisClient = createClient({
   url: process.env.REDIS_URL,
   socket: { rejectUnauthorized: false },
@@ -16,27 +16,36 @@ const redisClient = createClient({
 redisClient.on('error', (err) => {
   console.log('Redis/FileRoutes connection error:', err);
 });
-(async () => {
+async function connectRedis() {
   try {
     if (!redisClient.isOpen) {
       await redisClient.connect();
-      console.log('FileRoutes connected to Redis(for job queue)');
+
+      console.log('FileRoutes connected to Redis');
     }
   } catch (err) {
-    console.log('Failed to connect');
+    console.log('Failed to connect Redis in fileRoutes.js:', err);
   }
-})();
-// Multer storage
+}
+connectRedis();
+
+// Storage config for Multer
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../uploads/files')); // Ensure folder exists
   },
-  filename: function (req, file, cb) {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
+  filename: (req, file, cb) => {
+    cb(
+      null,
+      Date.now() +
+        '-' +
+        Math.round(Math.random() * 1e9) +
+        path.extname(file.originalname),
+    );
   },
 });
 
+// Create multer instance
 const upload = multer({ storage });
 
 //  Upload endpoint
@@ -64,6 +73,7 @@ router.post(
 
       console.log(`✅ File saved to DB: ${savedFile.fileName}`);
 
+      await connectRedis();
       await redisClient.lPush(
         'ai:tagging',
         JSON.stringify({
@@ -172,5 +182,6 @@ router.post('/:id/share', authMiddleware, async (req, res) => {
       .json({ success: false, message: 'Server error generating share link' });
   }
 });
+// ✅ Update profile
 
 module.exports = router;

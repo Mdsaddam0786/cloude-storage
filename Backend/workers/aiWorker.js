@@ -4,7 +4,7 @@ const { createClient } = require('redis');
 const { processFileWithAI } = require('../jobs/aiProcessor'); // Ensure this file exists
 
 // Connect MongoDB
-console.log('🔌 Connecting to MongoDB...');
+console.log(' Connecting to MongoDB...');
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected in Worker'))
@@ -13,42 +13,31 @@ mongoose
 // Redis connection with TLS
 const redisClient = createClient({
   url: process.env.REDIS_URL,
-  socket: {
-    rejectUnauthorized: false, // optional, if cert issues
-  },
+  socket: { rejectUnauthorized: false },
 });
 
 redisClient.on('error', (err) => {
-  console.error('❌ Redis/Worker connection error:', err);
+  console.error('Redis/AIWorker connection error:', err);
 });
 
-redisClient
-  .connect()
-  .then(() => {
-    console.log(
-      `📡 Worker connected to Redis at ${process.env.REDIS_HOST}:${process.env.REDIS_PORT} (TLS)`,
-    );
-    // Start processing jobs here...
-  })
-  .catch(console.error);
-
-// Listen for jobs in Redis
-async function listenForJobs() {
-  console.log('👂 Worker listening for AI processing jobs...');
-  while (true) {
-    try {
-      // Block until a job arrives
-      const job = await redisClient.brPop('ai:tagging', 0);
-
-      if (job && job.element) {
-        const { fileId, filePath } = JSON.parse(job.element);
-        console.log(`🧠 Processing file: ${filePath}`);
-        await processFileWithAI(fileId, filePath);
-        console.log(`✅ Finished processing file: ${filePath}`);
-      }
-    } catch (err) {
-      console.error('❌ Error processing job:', err);
+async function connectAndWork() {
+  try {
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+      console.log('AIWorker connected to Redis');
     }
+
+    while (true) {
+      const data = await redisClient.brPop('ai:tagging', 0);
+      if (data) {
+        const job = JSON.parse(data.element);
+        console.log('Processing AI job for file:', job.fileId);
+        await processFileWithAI(job.fileId, job.filePath);
+      }
+    }
+  } catch (err) {
+    console.error('Error in AI worker:', err);
   }
 }
-listenForJobs();
+
+connectAndWork();

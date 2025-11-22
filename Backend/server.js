@@ -8,8 +8,10 @@ const path = require('path');
 const { createClient } = require('redis');
 
 const app = express();
-console.log('🚀 server.js is executing...');
+console.log('server.js is executing...');
+
 app.use(express.json());
+
 // Middleware
 app.use(
   cors({
@@ -34,7 +36,7 @@ mongoose
 const redisClient = createClient({
   url: process.env.REDIS_URL,
   socket: {
-    rejectUnauthorized: false, // optional, if cert issues
+    rejectUnauthorized: false, // optional if cert issues
   },
 });
 
@@ -42,14 +44,19 @@ redisClient.on('error', (err) => {
   console.error('❌ Redis connection error:', err);
 });
 
-redisClient
-  .connect()
-  .then(() => {
-    console.log(
-      `📡 Connected to Redis at ${process.env.REDIS_HOST}:${process.env.REDIS_PORT} (TLS)`,
-    );
-  })
-  .catch(console.error);
+async function connectRedis() {
+  try {
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+      console.log(
+        `✅ Connected to Redis at ${process.env.REDIS_HOST}:${process.env.REDIS_PORT} (TLS)`,
+      );
+    }
+  } catch (err) {
+    console.error('❌ Failed to connect Redis in server.js:', err);
+  }
+}
+connectRedis();
 
 // Start server
 const PORT = process.env.PORT || 5000;

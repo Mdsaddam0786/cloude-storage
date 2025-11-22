@@ -11,6 +11,34 @@ export default function Home() {
   const [shareFile, setShareFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [user, setUser] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const fetchUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      setUser(res.data);
+    } catch (err) {
+      console.error('❌ Error fetching user:', err);
+    }
+  };
+
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+
+    try {
+      await api.put('/auth/profile', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      alert('Profile updated!');
+      await fetchUser(); // ✅ Refresh user data instantly
+      setShowProfileModal(false); // ✅ Close modal
+    } catch (err) {
+      console.error('❌ Profile update error:', err);
+    }
+  };
 
   const handleDelete = async (id) => {
     try {
@@ -42,10 +70,9 @@ export default function Home() {
     window.location.reload();
   };
 
-  // Fetch files once
   const fetchFiles = async () => {
     try {
-      const res = await api.get('http://localhost:5000/api/files');
+      const res = await api.get('/files');
       const allFiles = res.data || [];
       setFiles(allFiles);
 
@@ -56,24 +83,43 @@ export default function Home() {
 
       if (pending.length > 0) {
         console.log(
-          '⏳ Still pending tags for files:',
+          '⏳ Pending tags:',
           pending.map((f) => f.fileName),
         );
       } else {
         console.log('✅ All files have AI tags!');
       }
 
-      return allFiles; // ✅ return data so initLoad() can use it
+      return allFiles;
     } catch (err) {
       console.error('❌ Error fetching files:', err);
-      return []; // ✅ avoid undefined
+      return [];
     } finally {
       setLoading(false);
     }
   };
 
-  // Auto-refresh logic with debug + timeout
+  const handleDeleteAccount = async () => {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete your account? This cannot be undone.',
+      )
+    )
+      return;
+
+    try {
+      await api.delete('/auth/delete'); // Matches backend route
+      localStorage.removeItem('token');
+      alert('Your account has been deleted.');
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('❌ Delete account error:', err);
+      alert('Failed to delete account.');
+    }
+  };
+
   useEffect(() => {
+    fetchUser();
     let intervalId;
     let startTime = Date.now();
 
@@ -85,44 +131,21 @@ export default function Home() {
         (f) => !f.ai_tags || f.ai_tags.length === 0,
       );
       if (hasPendingTags) {
-        console.log('⏳ Starting auto-refresh: Some files are missing AI tags');
-
         intervalId = setInterval(async () => {
-          console.log('🔄 Auto-refreshing files to check for AI tags...');
           const updated = await fetchFiles();
-          const pendingFiles = updated.filter(
+          const stillPending = updated.some(
             (f) => !f.ai_tags || f.ai_tags.length === 0,
           );
 
-          if (pendingFiles.length) {
-            console.log(
-              '⏳ Still pending tags for files:',
-              pendingFiles.map((f) => f.fileName),
-            );
-          }
-
-          const stillPending = pendingFiles.length > 0;
-          const elapsedSeconds = (Date.now() - startTime) / 1000;
-
-          if (!stillPending) {
+          if (!stillPending || (Date.now() - startTime) / 1000 > 120) {
             clearInterval(intervalId);
-            console.log('✅ All tags ready — stopped auto-refresh');
-          } else if (elapsedSeconds > 120) {
-            // stop after 2 min
-            clearInterval(intervalId);
-            console.warn(
-              '⚠️ Stopped auto-refresh after 2 minutes — some files never got tags',
-            );
           }
-        }, 10000); // 10s
+        }, 10000);
       }
     };
 
     initLoad();
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => intervalId && clearInterval(intervalId);
   }, []);
 
   return (
@@ -132,16 +155,30 @@ export default function Home() {
         <h1 className="text-2xl font-semibold text-gray-800">
           ☁️ Saddam&apos;s Cloud Storage
         </h1>
-        <button
-          onClick={handleLogout}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition">
-          Logout
-        </button>
+        <div className="flex items-center space-x-4">
+          {user?.photo && (
+            <img
+              src={user.photo}
+              alt="Profile"
+              className="w-10 h-10 rounded-full object-cover border"
+            />
+          )}
+          <span className="text-gray-700">{user?.name}</span>
+          <button
+            onClick={() => setShowProfileModal(true)}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded">
+            Edit Profile
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+            Logout
+          </button>
+        </div>
       </header>
 
       {/* Main content */}
       <main className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* Error Toast */}
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
             {error}
@@ -153,12 +190,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* Upload Area */}
         <div className="bg-white p-4 rounded shadow">
           <UploadArea onUpload={fetchFiles} />
         </div>
 
-        {/* File List */}
         <div className="bg-white rounded shadow p-4">
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -184,12 +219,71 @@ export default function Home() {
           )}
         </div>
 
-        {/* Share Modal */}
         <ShareModal
           file={shareFile}
           onClose={() => setShareFile(null)}
         />
       </main>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <form
+            onSubmit={handleProfileUpdate}
+            encType="multipart/form-data"
+            className="bg-white p-6 rounded shadow-lg w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold mb-4">Update Profile</h2>
+            <input
+              name="name"
+              defaultValue={user?.name}
+              className="w-full border p-2 rounded"
+              placeholder="Name"
+            />
+            <input
+              name="email"
+              defaultValue={user?.email}
+              className="w-full border p-2 rounded"
+              placeholder="Email"
+              type="email"
+            />
+            <input
+              name="mobile"
+              defaultValue={user?.mobile}
+              className="w-full border p-2 rounded"
+              placeholder="Mobile"
+            />
+            <input
+              name="password"
+              className="w-full border p-2 rounded"
+              placeholder="New Password"
+              type="password"
+            />
+            <input
+              name="profilePhoto"
+              type="file"
+              className="w-full border p-2 rounded"
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                className="px-4 py-2 bg-gray-300 rounded">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-500 text-white rounded">
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      <button
+        onClick={handleDeleteAccount}
+        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+        Delete Account
+      </button>
     </div>
   );
 }

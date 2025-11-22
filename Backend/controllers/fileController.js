@@ -1,11 +1,11 @@
-// controllers/fileController.js
+// controller
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const File = require('../models/File');
 const addAIJob = require('../jobs/aiProcessor');
 
-// ===== Multer Storage Config =====
+//  Multer Storage Config 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const userId = req.user?.id;
@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// ===== Upload File =====
+// Upload File 
 const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -49,7 +49,7 @@ const uploadFile = async (req, res) => {
       `💾 [FileController] File saved to DB: ${savedFile.fileName} (${savedFile._id})`,
     );
 
-    // 🚀 Enqueue AI job asynchronously
+    //  Enqueue AI job asynchronously
     addAIJob({
       _id: savedFile._id,
       fileName: savedFile.fileName,
@@ -66,7 +66,7 @@ const uploadFile = async (req, res) => {
   }
 };
 
-// ===== List Files =====
+//  List Files 
 const listFiles = async (req, res) => {
   try {
     const ownerId = req.user?.id;
@@ -83,7 +83,7 @@ const listFiles = async (req, res) => {
   }
 };
 
-// ===== Download File =====
+// Download File
 const downloadFile = async (req, res) => {
   try {
     const ownerId = req.user?.id;
@@ -105,7 +105,7 @@ const downloadFile = async (req, res) => {
   }
 };
 
-// ===== Delete File =====
+//  Delete File 
 const deleteFile = async (req, res) => {
   try {
     const file = await File.findOne({
@@ -123,7 +123,7 @@ const deleteFile = async (req, res) => {
 
     await File.deleteOne({ _id: req.params.id, ownerId: req.user.id });
     console.log(
-      `🗑️ [FileController] File deleted: ${file.fileName} (${file._id})`,
+      ` [FileController] File deleted: ${file.fileName} (${file._id})`,
     );
 
     return res.json({ success: true, message: 'File deleted successfully' });
@@ -161,7 +161,7 @@ const renameFile = async (req, res) => {
     file.fileName = newName;
     file.filePath = newPath;
     await file.save();
-    console.log(`✏️ [FileController] File renamed: ${file._id} → ${newName}`);
+    console.log(` [FileController] File renamed: ${file._id} → ${newName}`);
 
     return res.status(200).json({ message: 'File renamed successfully', file });
   } catch (error) {
