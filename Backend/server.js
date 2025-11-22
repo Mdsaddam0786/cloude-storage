@@ -15,7 +15,7 @@ app.use(express.json());
 // Middleware
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: 'https://cloude-storage-vqof.vercel.app/',
     credentials: true,
   }),
 );
