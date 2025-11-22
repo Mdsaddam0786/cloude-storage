@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // ✅ match your backend
+  baseURL: 'https://cloude-storage-tan.vercel.app/', // ✅ match your backend
 });
 
 api.interceptors.request.use((config) => {
