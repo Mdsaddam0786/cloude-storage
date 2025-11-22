@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'https://cloude-storage.onrender.com/', // ✅ match your backend
-  
+
 });
 
 api.interceptors.request.use((config) => {
