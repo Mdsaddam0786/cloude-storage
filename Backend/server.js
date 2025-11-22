@@ -15,7 +15,7 @@ app.use(express.json());
 // Middleware
 app.use(
   cors({
-    origin: 'https://cloude-storage-vqof.vercel.app/',
+    origin: 'https://cloude-storage-vqof.vercel.app',
     credentials: true,
   }),
 );
