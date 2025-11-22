@@ -8,7 +8,7 @@ const path = require('path');
 const { createClient } = require('redis');
 
 const app = express();
-console.log('server.js is executing...');
+console.log('server.js is executing...'); 
 
 app.use(express.json());
 
